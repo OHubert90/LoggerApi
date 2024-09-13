@@ -3,9 +3,11 @@ using LoggerApi.Data;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.Services.AddDbContext<SourceDbContext>(options =>
+    options.UseSqlServer(builder.Configuration.GetConnectionString("SourceDatabase")));
 
-builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseInMemoryDatabase("LoggerDb"));
+builder.Services.AddDbContext<DestinationDbContext>(options =>
+    options.UseSqlServer(builder.Configuration.GetConnectionString("DestinationDatabase")));
 
 builder.Services.AddControllers();
 
