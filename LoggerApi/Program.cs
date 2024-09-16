@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using LoggerApi.Data;
+using LoggerApi.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -13,6 +14,8 @@ builder.Services.AddControllers();
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+builder.Services.AddScoped<LogEntriesService>();
+builder.Services.AddHostedService<DataTransferService>();
 
 builder.Services.AddCors(options =>
 {

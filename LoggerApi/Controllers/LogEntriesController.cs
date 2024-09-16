@@ -1,5 +1,5 @@
-﻿using LoggerApi.Data;
-using LoggerApi.Models;
+﻿using LoggerApi.Models;
+using LoggerApi.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -9,36 +9,31 @@ namespace LoggerApi.Controllers
     [ApiController]
     public class LogEntriesController : ControllerBase
     {
-        private readonly SourceDbContext _sourceContext;
-        private readonly DestinationDbContext _destinationContext;
+        private readonly LogEntriesService _logEntryService;
 
-        public LogEntriesController(SourceDbContext sourceContext, DestinationDbContext destinationContext)
+        public LogEntriesController(LogEntriesService logEntryService)
         {
-            _sourceContext = sourceContext;
-            _destinationContext = destinationContext;
+            _logEntryService = logEntryService;
         }
 
-        // Get all Log Entries from Source Database
         [HttpGet("source")]
         public async Task<ActionResult<IEnumerable<LogEntry>>> GetSourceLogEntries()
         {
-            var sourceLogEntries = await _sourceContext.LogEntries.ToListAsync();
+            var sourceLogEntries = await _logEntryService.GetSourceLogEntriesAsync();
             return Ok(sourceLogEntries);
         }
 
-        // Get all Log Entries from Destination Database
         [HttpGet("destination")]
         public async Task<ActionResult<IEnumerable<LogEntry>>> GetDestinationLogEntries()
         {
-            var destinationLogEntries = await _destinationContext.LogEntries.ToListAsync();
+            var destinationLogEntries = await _logEntryService.GetDestinationLogEntriesAsync();
             return Ok(destinationLogEntries);
         }
 
-        // Get Log Entry by ID from Source Database
         [HttpGet("source/{id}")]
         public async Task<ActionResult<LogEntry>> GetSourceLogEntryById(int id)
         {
-            var logEntry = await _sourceContext.LogEntries.FindAsync(id);
+            var logEntry = await _logEntryService.GetSourceLogEntryByIdAsync(id);
 
             if (logEntry == null)
                 return NotFound();
@@ -46,11 +41,10 @@ namespace LoggerApi.Controllers
             return Ok(logEntry);
         }
 
-        // Get Log Entry by ID from Destination Database
         [HttpGet("destination/{id}")]
         public async Task<ActionResult<LogEntry>> GetDestinationLogEntryById(int id)
         {
-            var logEntry = await _destinationContext.LogEntries.FindAsync(id);
+            var logEntry = await _logEntryService.GetDestinationLogEntryByIdAsync(id);
 
             if (logEntry == null)
                 return NotFound();
@@ -58,44 +52,33 @@ namespace LoggerApi.Controllers
             return Ok(logEntry);
         }
 
-        // Add new Log Entry to Source Database
         [HttpPost("source")]
         public async Task<ActionResult<LogEntry>> CreateSourceLogEntry(LogEntry logEntry)
         {
-            logEntry.MpnGroupGuid = Guid.NewGuid(); 
-            _sourceContext.LogEntries.Add(logEntry);
-            await _sourceContext.SaveChangesAsync();
-
-            return CreatedAtAction(nameof(GetSourceLogEntryById), new { id = logEntry.Id }, logEntry);
+            var createdLogEntry = await _logEntryService.CreateSourceLogEntryAsync(logEntry);
+            return CreatedAtAction(nameof(GetSourceLogEntryById), new { id = createdLogEntry.Id }, createdLogEntry);
         }
 
-        // Add new Log Entry to Destination Database
         [HttpPost("destination")]
         public async Task<ActionResult<LogEntry>> CreateDestinationLogEntry(LogEntry logEntry)
         {
-            logEntry.MpnGroupGuid = Guid.NewGuid(); 
-            _destinationContext.LogEntries.Add(logEntry);
-            await _destinationContext.SaveChangesAsync();
-
-            return CreatedAtAction(nameof(GetDestinationLogEntryById), new { id = logEntry.Id }, logEntry);
+            var createdLogEntry = await _logEntryService.CreateDestinationLogEntryAsync(logEntry);
+            return CreatedAtAction(nameof(GetDestinationLogEntryById), new { id = createdLogEntry.Id }, createdLogEntry);
         }
 
-        // Update Log Entry in Source Database
         [HttpPut("source/{id}")]
         public async Task<IActionResult> UpdateSourceLogEntry(int id, LogEntry logEntry)
         {
             if (id != logEntry.Id)
                 return BadRequest();
 
-            _sourceContext.Entry(logEntry).State = EntityState.Modified;
-
             try
             {
-                await _sourceContext.SaveChangesAsync();
+                await _logEntryService.UpdateSourceLogEntryAsync(logEntry);
             }
             catch (DbUpdateConcurrencyException)
             {
-                if (!SourceLogEntryExists(id))
+                if (await _logEntryService.GetSourceLogEntryByIdAsync(id) == null)
                     return NotFound();
                 else
                     throw;
@@ -104,22 +87,19 @@ namespace LoggerApi.Controllers
             return NoContent();
         }
 
-        // Update Log Entry in Destination Database
         [HttpPut("destination/{id}")]
         public async Task<IActionResult> UpdateDestinationLogEntry(int id, LogEntry logEntry)
         {
             if (id != logEntry.Id)
                 return BadRequest();
 
-            _destinationContext.Entry(logEntry).State = EntityState.Modified;
-
             try
             {
-                await _destinationContext.SaveChangesAsync();
+                await _logEntryService.UpdateDestinationLogEntryAsync(logEntry);
             }
             catch (DbUpdateConcurrencyException)
             {
-                if (!DestinationLogEntryExists(id))
+                if (await _logEntryService.GetDestinationLogEntryByIdAsync(id) == null)
                     return NotFound();
                 else
                     throw;
@@ -128,43 +108,18 @@ namespace LoggerApi.Controllers
             return NoContent();
         }
 
-        // Delete Log Entry from Source Database
         [HttpDelete("source/{id}")]
         public async Task<IActionResult> DeleteSourceLogEntry(int id)
         {
-            var logEntry = await _sourceContext.LogEntries.FindAsync(id);
-            if (logEntry == null)
-                return NotFound();
-
-            _sourceContext.LogEntries.Remove(logEntry);
-            await _sourceContext.SaveChangesAsync();
-
+            await _logEntryService.DeleteSourceLogEntryAsync(id);
             return NoContent();
         }
 
-        // Delete Log Entry from Destination Database
         [HttpDelete("destination/{id}")]
         public async Task<IActionResult> DeleteDestinationLogEntry(int id)
         {
-            var logEntry = await _destinationContext.LogEntries.FindAsync(id);
-            if (logEntry == null)
-                return NotFound();
-
-            _destinationContext.LogEntries.Remove(logEntry);
-            await _destinationContext.SaveChangesAsync();
-
+            await _logEntryService.DeleteDestinationLogEntryAsync(id);
             return NoContent();
-        }
-
-        // Helper methods to check if a LogEntry exists in Source/Destination Database
-        private bool SourceLogEntryExists(int id)
-        {
-            return _sourceContext.LogEntries.Any(e => e.Id == id);
-        }
-
-        private bool DestinationLogEntryExists(int id)
-        {
-            return _destinationContext.LogEntries.Any(e => e.Id == id);
         }
     }
 }
